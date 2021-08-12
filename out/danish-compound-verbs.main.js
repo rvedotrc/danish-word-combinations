@@ -46,7 +46,7 @@
       const row = document.createElement("tr");
       table.appendChild(row);
 
-      row.appendChild(thContaining(definitions[root] || "?", "en", "root"));
+      row.appendChild(thContaining((definitions["at " + root] || "?").replace("to ", ""), "en", "root"));
       row.appendChild(thContaining(root, "da", "root"));
 
       prefixes.forEach(prefix => {
@@ -65,18 +65,18 @@
           const span2 = document.createElement("span");
           span2.setAttribute("class", "formula-root");
 
-          if (definitions[root]) {
+          if (definitions["at " + root]) {
             span2.setAttribute("lang", "en");
-            span2.appendChild(document.createTextNode(definitions[root]));
+            span2.appendChild(document.createTextNode(definitions["at " + root].replace("to ", "")));
           } else {
             span2.setAttribute("lang", "da");
             span2.appendChild(document.createTextNode(root));
           }
 
-          const word = prefix + root;
+          const word = "at " + prefix + root;
           const span3 = document.createElement("span");
           span3.setAttribute("class", "formula-result");
-          span3.appendChild(document.createTextNode(definitions[word] || "?"));
+          span3.appendChild(document.createTextNode((definitions[word] || "?").replace("to ", "")));
 
           td.appendChild(span1);
           td.appendChild(span2);

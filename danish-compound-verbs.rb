@@ -1,5 +1,74 @@
 #!/usr/bin/env ruby
 
+require 'json'
+require 'set'
+
+class TranslationsCache
+
+  def initialize(file)
+    @file = file
+    @data = begin
+              JSON.parse(IO.read(file))
+            rescue Errno::ENOENT
+              {}
+            end
+  end
+
+  def interactive_multi_get(words)
+    words = words.to_set
+    missing = words - @data.keys
+    interactive_fill(missing)
+    words.map do |word|
+      [word, @data[word]]
+    end.to_h
+  end
+
+  private
+
+  def interactive_fill(missing)
+    missing = missing.to_set.to_a
+    return if missing.empty?
+
+    require 'open3'
+    text = missing.each_with_index.map { |word, index| "#{index}. #{word}." }.join("\n")
+    Open3.pipeline_w("pbcopy") { |i, ts| i.print text }
+
+    puts "Text is copied to the clipboard.\n"
+    puts "Translate from Danish to English using https://translate.google.co.uk/?sl=da&tl=en ,"
+    puts "copy the results to the clipboard, then press return."
+    $stdin.readline
+
+    result = `pbpaste`
+    # TODO transform ZWSP to spaces
+    modified = false
+
+    result.scan(/(\d+)\.(.*?)\./).each do |index, english|
+      danish = missing[index.to_i]
+      english.strip!
+
+      if english == danish
+        puts "Ignoring #{danish}=#{english} because it's the same. Maybe Google just didn't translate that word."
+        puts "Maybe manually add it to #{@file}"
+      else
+        modified = true
+        @data[danish] = english
+      end
+    end
+
+    if modified
+      require 'tempfile'
+      Tempfile.open(@file, File.dirname(@file)) do |f|
+        @data = @data.entries.sort_by(&:first).to_h
+        f.puts(JSON.pretty_generate(@data))
+        f.chmod 0o644
+        f.flush
+        File.rename f.path, @file
+      end
+    end
+  end
+
+end
+
 prefixes = %w[
   und
   ind ud
@@ -38,6 +107,8 @@ roots = %w[
   søge
   se
   tale
+  trykke
+  trække
 ].sort.uniq
 
 regex = "^(#{prefixes.join("|")})(#{roots.join("|")})$"
@@ -52,39 +123,22 @@ matches = Hash.new { |h, k| h[k] = Hash.new }
   end
 end
 
-def get_definition(item)
-  "?"
-end
-
-def print_row(*cells)
-  puts cells.join("\t")
-end
-
-print_row("", *prefixes)
-roots.each do |root|
-  print_row(root, *prefixes.map { |prefix| matches[prefix].include?(root) ? "Y" : "" })
-end
-
 require 'json'
 File.open("out/danish-compound-verbs.combinations.js", "w") do |f|
   f.write "combinations(#{JSON.generate(matches)});\n"
 end
 
-File.open("danish-compound-verbs.definitions.txt", "w") do |f|
-  f.puts "// prefixes"
-  prefixes.each { |w| f.puts "#{w}." }
-  f.puts
+File.open("out/danish-compound-verbs.definitions.js", "w") do |f|
+  words = [
+    *prefixes,
+    *roots.map { |root| "at " + root },
+    *matches.map do |prefix, inner|
+      inner.keys.map do |root|
+        "at " + prefix + root
+      end
+    end.flatten.sort,
+  ].uniq
 
-  f.puts "// roots"
-  roots.each { |w| f.puts "at #{w}." }
-  f.puts
-
-  words = matches.map do |prefix, inner|
-    inner.keys.map do |root|
-      prefix + root
-    end
-  end.flatten.sort
-  f.puts "// combinations"
-  words.each { |w| f.puts "at #{w}." }
-  f.puts
+  defs = TranslationsCache.new("translations.json").interactive_multi_get(words)
+  f.write "definitions(#{JSON.generate(defs)});\n"
 end
