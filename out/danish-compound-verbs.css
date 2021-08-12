@@ -1,0 +1,31 @@
+th.root {
+    text-align: left;
+}
+
+th[lang="en"] {
+    font-weight: normal;
+}
+
+td.combination {
+    text-align: center;
+    min-width: 5em;
+    text-wrap: avoid;
+    padding-bottom: 0.3em;
+}
+
+td.combination:hover {
+    background: #bbbbbb;
+}
+
+.formula-prefix[lang="da"] {
+    font-style: italic;
+}
+
+.formula-prefix:after {
+    text-wrap: avoid;
+    content: "+";
+}
+
+.formula-root:after {
+    content: "=";
+}
